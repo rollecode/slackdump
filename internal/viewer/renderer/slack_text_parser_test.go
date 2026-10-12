@@ -25,6 +25,7 @@ func TestSlack_mrkdwn(t *testing.T) {
 		{"bold italic strike", "*b* _i_ ~s~", "<b>b</b> <i>i</i> <s>s</s>"},
 		{"snake_case untouched", "my_var_name", "my_var_name"},
 		{"inline code keeps stars", "`*x*`", "<code>*x*</code>"},
+		{"inline code link", "`<https://x.io/c/1|1a2b>` fix", `<code><a href="https://x.io/c/1" target="_blank" rel="noopener noreferrer">1a2b</a></code> fix`},
 		{"code block", "see:\n```a < b```\nok", `see:<pre class="code-block">a &lt; b</pre>ok`},
 		{"quote", "&gt; quoted\nnext", `<blockquote class="quote">quoted</blockquote>next`},
 		{"emoji", ":beer: time", "\U0001F37A time"},

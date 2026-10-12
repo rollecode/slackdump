@@ -58,8 +58,8 @@ func initTemplates(v *Viewer) {
 			"username":        v.username, // username returns the username for the message
 			"userpic":         v.userpic,  // userpic returns the userpic for the user
 			"time":            localtime,
-			"rendertext":      func(s string) string { return v.r.RenderText(context.Background(), s) },            // render message text
-			"render":          func(m slack.Message) template.HTML { return v.r.Render(context.Background(), &m) }, // render message
+			"rendertext":      func(s string) template.HTML { return template.HTML(v.r.RenderText(context.Background(), s)) }, // render message text
+			"render":          func(m slack.Message) template.HTML { return v.r.Render(context.Background(), &m) },            // render message
 			"is_thread_start": func(m slack.Message) bool { return st.IsThreadStart(&m) },
 			"canvas_present":  func(ch slack.Channel) bool { return ch.Properties != nil && ch.Properties.Canvas.FileId != "" },
 			"msgview": func(channelID string, m slack.Message, continued ...bool) messageView {

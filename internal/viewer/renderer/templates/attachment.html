@@ -5,12 +5,12 @@
         <p class="author">{{ if .AuthorIcon }}<img class="icon" src="{{rewriteurl .AuthorIcon}}" alt="">{{ else if .ServiceIcon }}<img class="icon" src="{{rewriteurl .ServiceIcon}}" alt="">{{ end }}{{ if .AuthorName }}{{ .AuthorName }}{{ else }}{{ .ServiceName }}{{ end }}{{ if .AuthorSubname }} <span class="author-subname">{{ .AuthorSubname }}</span>{{ end }}</p>
         {{ end }}
         {{ if .Title }}
-        <p class="att-title">{{ if .TitleLink }}<a href="{{ .TitleLink }}" target="_blank" rel="noopener noreferrer">{{ .Title }}</a>{{ else }}{{ .Title }}{{ end }}</p>
+        <p class="att-title">{{ if .TitleLink }}<a href="{{ .TitleLink }}" target="_blank" rel="noopener noreferrer">{{ .Title }}</a>{{ else }}{{ mrkdwn .Title }}{{ end }}</p>
         {{ end }}
         {{ if .Text }}<div class="message-text">{{ mrkdwn .Text }}</div>{{ else if and (not .Title) (not .ImageURL) .Fallback }}<div class="message-text">{{ mrkdwn .Fallback }}</div>{{ end }}
         {{ if .ImageURL }}{{ template "attachment-image" . }}{{ end }}
         {{ if or .Footer .Ts }}
-        <p class="footer">{{ if .FooterIcon }}<img class="icon" src="{{rewriteurl .FooterIcon}}" alt="">{{ end }}{{ .Footer }}{{ if and .Footer .Ts }} | {{ end }}{{ if .Ts }}<time>{{ epoch .Ts }}</time>{{ end }}</p>
+        <p class="footer">{{ if .FooterIcon }}<img class="icon" src="{{rewriteurl .FooterIcon}}" alt="">{{ end }}{{ mrkdwn .Footer }}{{ if and .Footer .Ts }} | {{ end }}{{ if .Ts }}<time>{{ epoch .Ts }}</time>{{ end }}</p>
         {{ end }}
     </article>
 </blockquote>

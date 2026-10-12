@@ -37,8 +37,7 @@ func (s *Slack) mrkdwn(text string) string {
 		return hold(`<pre class="code-block">` + html.EscapeString(html.UnescapeString(body)) + `</pre>`)
 	})
 	text = reInlineCode.ReplaceAllStringFunc(text, func(m string) string {
-		body := reInlineCode.FindStringSubmatch(m)[1]
-		return hold(`<code>` + html.EscapeString(html.UnescapeString(body)) + `</code>`)
+		return hold(`<code>` + s.codeText(reInlineCode.FindStringSubmatch(m)[1]) + `</code>`)
 	})
 	text = reToken.ReplaceAllStringFunc(text, func(m string) string {
 		return hold(s.token(reToken.FindStringSubmatch(m)[1]))
@@ -68,6 +67,20 @@ func (s *Slack) mrkdwn(text string) string {
 	}
 	// Block elements bring their own spacing; drop the line breaks around them.
 	return blockBreaks.Replace(text)
+}
+
+// codeText escapes inline code but keeps links, which Slack makes clickable
+// inside backticks too.
+func (s *Slack) codeText(body string) string {
+	var buf strings.Builder
+	last := 0
+	for _, loc := range reToken.FindAllStringSubmatchIndex(body, -1) {
+		buf.WriteString(html.EscapeString(html.UnescapeString(body[last:loc[0]])))
+		buf.WriteString(s.token(body[loc[2]:loc[3]]))
+		last = loc[1]
+	}
+	buf.WriteString(html.EscapeString(html.UnescapeString(body[last:])))
+	return buf.String()
 }
 
 var blockBreaks = strings.NewReplacer(

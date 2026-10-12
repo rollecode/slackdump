@@ -97,7 +97,7 @@ func TestSlack_Render(t *testing.T) {
 			args{
 				m: loadmsg(t, fxtrPolly),
 			},
-			template.HTML(strings.ReplaceAll(strings.TrimSpace(ungzip(t, fxtrPollyHTML)), "<!date^1737765162^{date_short} at {time}|Jan 25, 2025 at 00:32 AM>", "&lt;!date^1737765162^{date_short} at {time}|Jan 25, 2025 at 00:32 AM&gt;")),
+			template.HTML(strings.TrimSpace(ungzip(t, fxtrPollyHTML))),
 		},
 	}
 	for _, tt := range tests {

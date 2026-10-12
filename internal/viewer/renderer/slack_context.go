@@ -41,7 +41,7 @@ func (s *Slack) mbtContext(ib slack.Block) (string, string, error) {
 		cbuf.WriteString(cl)
 	}
 
-	return buf.String(), cbuf.String(), nil
+	return `<div class="` + blockTypeClass[slack.MBTContext] + `">` + buf.String() + `</div>`, cbuf.String(), nil
 }
 
 var contextElementHandlers = map[slack.MixedElementType]func(*Slack, slack.MixedElement) (string, string, error){
@@ -68,10 +68,13 @@ func (s *Slack) metImage(ie slack.MixedElement) (string, string, error) {
 	return fmt.Sprintf(`<img src="%s" alt="%s">`, escape(safeURI), escape(e.AltText)), "", nil
 }
 
-func (*Slack) metText(ie slack.MixedElement) (string, string, error) {
+func (s *Slack) metText(ie slack.MixedElement) (string, string, error) {
 	e, ok := ie.(*slack.TextBlockObject)
 	if !ok {
 		return "", "", NewErrIncorrectType(&slack.TextBlockObject{}, ie)
 	}
-	return escape(e.Text), "", nil
+	if e.Type == slack.MarkdownType {
+		return `<span>` + s.mrkdwn(e.Text) + `</span>`, "", nil
+	}
+	return `<span>` + escape(e.Text) + `</span>`, "", nil
 }
