@@ -46,6 +46,12 @@ func (v *Viewer) RenderIndex(ctx context.Context, w io.Writer) error {
 
 // RenderChannel renders the full conversation page for channelID to w.
 func (v *Viewer) RenderChannel(ctx context.Context, channelID string, w io.Writer) error {
+	return v.renderChannel(ctx, channelID, pageQuery{}, "index.html", w)
+}
+
+// renderChannel renders the conversation with tmpl.  The live viewer shows
+// one page of messages, picked by q; static output gets them all.
+func (v *Viewer) renderChannel(ctx context.Context, channelID string, q pageQuery, tmpl string, w io.Writer) error {
 	ci, err := v.src.ChannelInfo(ctx, channelID)
 	if err != nil {
 		return err
@@ -59,7 +65,15 @@ func (v *Viewer) RenderChannel(ctx context.Context, channelID string, w io.Write
 		return err
 	}
 	page.Messages = it
-	return v.tmpl.ExecuteTemplate(w, "index.html", page)
+	page.Prev = ""
+	if page.Interactive {
+		pg, err := paginate(it, q)
+		if err != nil {
+			return err
+		}
+		page.Messages, page.Prev, page.Older, page.Newer = seqOf(pg.msgs), pg.prev, pg.older, pg.newer
+	}
+	return v.tmpl.ExecuteTemplate(w, tmpl, page)
 }
 
 // RenderThread renders the full thread page for (channelID, threadTS) to w.
@@ -160,11 +174,19 @@ func (v *Viewer) indexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (v *Viewer) channelHandler(w http.ResponseWriter, r *http.Request, id string) {
-	if isHXRequest(r) {
-		v.channelPartial(w, r, id)
+	q := pageFromRequest(r)
+	if _, err := parseTS(q.ts); err != nil {
+		http.Error(w, "invalid timestamp", http.StatusBadRequest)
 		return
 	}
-	if err := v.RenderChannel(r.Context(), id, w); err != nil {
+	tmpl := "index.html"
+	switch {
+	case q.isChunk():
+		tmpl = "message_chunk"
+	case isHXRequest(r):
+		tmpl = "hx_conversation"
+	}
+	if err := v.renderChannel(r.Context(), id, q, tmpl, w); err != nil {
 		lg := v.lg.With("in", "channelHandler", "channel", id)
 		if errors.Is(err, source.ErrNotFound) {
 			http.NotFound(w, r)
@@ -284,40 +306,6 @@ func (v *Viewer) canvasContentHandler(w http.ResponseWriter, r *http.Request, id
 }
 
 // ── HTMX-only partial helpers (live mode) ────────────────────────────────────
-
-func (v *Viewer) channelPartial(w http.ResponseWriter, r *http.Request, id string) {
-	ctx := r.Context()
-	lg := v.lg.With("in", "channelPartial", "channel", id)
-
-	it, err := v.src.AllMessages(ctx, id)
-	if err != nil {
-		if errors.Is(err, source.ErrNotFound) {
-			http.NotFound(w, r)
-			return
-		}
-		lg.ErrorContext(ctx, "AllMessages", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	ci, err := v.src.ChannelInfo(ctx, id)
-	if err != nil {
-		lg.ErrorContext(ctx, "ChannelInfo", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	page := v.view()
-	if err := v.setConversation(&page, ci); err != nil {
-		lg.ErrorContext(ctx, "setConversation", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	page.Messages = it
-	lg.DebugContext(ctx, "conversation", "id", id)
-	if err := v.tmpl.ExecuteTemplate(w, "hx_conversation", page); err != nil {
-		lg.ErrorContext(ctx, "ExecuteTemplate", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
 
 func (v *Viewer) threadPartial(w http.ResponseWriter, r *http.Request, id, ts string) {
 	ctx := r.Context()
@@ -555,6 +543,9 @@ type mainView struct {
 	Type            string
 	Interactive     bool
 	Messages        iter.Seq2[slack.Message, error]
+	Prev            any    // message before Messages, for day dividers and grouping
+	Older           string // ts to load older messages from, live mode only
+	Newer           string // ts to load newer messages from, live mode only
 	ThreadMessages  iter.Seq2[slack.Message, error]
 	ThreadID        string
 	Conversation    slack.Channel

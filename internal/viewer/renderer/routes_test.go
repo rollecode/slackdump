@@ -26,7 +26,7 @@ func TestRoutes_RewriteSlackURL(t *testing.T) {
 		{
 			name: "channel anchor permalink",
 			src:  "https://example.com/archives/C12341/p1738580940349469",
-			want: "/archives/C12341#1738580940.349469",
+			want: "/archives/C12341?at=1738580940.349469#1738580940.349469",
 		},
 		{
 			name: "user link",

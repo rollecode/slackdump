@@ -80,6 +80,10 @@ func (r *Routes) Channel(id string) string {
 }
 
 func (r *Routes) ChannelMessage(id, ts string) string {
+	if r.Interactive() && ts != "" {
+		// The live viewer renders one page of messages; at= picks the one holding ts.
+		return withFragment(r.Channel(id)+"?at="+url.QueryEscape(ts), ts)
+	}
 	return withFragment(r.Channel(id), ts)
 }
 

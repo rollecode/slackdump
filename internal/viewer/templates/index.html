@@ -66,8 +66,8 @@
             <p id="settings-description">Preferences apply to this browser across archives opened at the same viewer address.</p>
             <label for="conversation-start">Open conversations at:</label>
             <select id="conversation-start" name="conversationStart">
-                <option value="oldest">Oldest</option>
                 <option value="latest">Latest</option>
+                <option value="oldest">Oldest</option>
             </select>
             <p>Changes apply the next time you open a conversation.</p>
             <p id="settings-status" role="status" hidden></p>
@@ -166,7 +166,7 @@
             </button>
         </div>
         {{ end }}
-        <p>{{ .Conversation.Topic.Value }}</p>
+        <p>{{ rendertext .Conversation.Topic.Value }}</p>
         {{ if canvas_present .Conversation }}
         {{ template "tab_list" . }}
         {{ end }}
@@ -216,7 +216,15 @@
 {{ $id := .Conversation.ID }}
 <div class="message-list" id="tab-panel-conversation" role="tabpanel" aria-labelledby="tab-btn-conversation" tabindex="0">
 {{ if .Interactive }}<div data-conversation-content>{{ end }}
-{{ $prev := "" }}
+{{ template "message_chunk" . }}
+{{ if .Interactive }}</div>{{ end }}
+</div>
+{{end}}
+
+{{ define "message_chunk" }}
+{{ $id := .Conversation.ID }}
+{{ if .Older }}<div class="load-more" data-load-more="{{ channelurl $id }}?before={{ .Older }}" data-direction="older" role="status">Loading older messages…</div>{{ end }}
+{{ $prev := .Prev }}
 {{ range $el, $err := .Messages }}
     {{ if $err }}<article class="message"><p>Error: {{ $err }}</p></article>{{ else }}
     {{ if newday $prev $el }}<div class="day-divider" role="separator"><span>{{ daylabel $el.Timestamp }}</span></div>{{ end }}
@@ -239,8 +247,7 @@
     {{ $prev = $el }}
     {{ end }}
 {{end}}
-{{ if .Interactive }}</div>{{ end }}
-</div>
+{{ if .Newer }}<div class="load-more" data-load-more="{{ channelurl $id }}?after={{ .Newer }}" data-direction="newer" role="status">Loading newer messages…</div>{{ end }}
 {{end}}
 
 

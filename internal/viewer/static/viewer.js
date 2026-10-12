@@ -119,7 +119,7 @@
     }
 
     var settingsKey = "slackdump.viewer.settings";
-    var conversationStart = "oldest";
+    var conversationStart = "latest";
     var stopFollowing = function () {};
 
     function readSettings() {
@@ -132,7 +132,12 @@
         } catch (_) {
             // Storage may be blocked or contain an invalid value.
         }
-        return "oldest";
+        return "latest";
+    }
+
+    // The server picks the first page of a channel, so it needs the preference too.
+    function saveStartCookie() {
+        document.cookie = "slackdump-viewer-start=" + conversationStart + "; path=/; max-age=31536000; samesite=lax";
     }
 
     function conversationList() {
@@ -142,6 +147,13 @@
     function jumpToLatest() {
         stopFollowing();
         var list = conversationList();
+        var newer = list && qs('[data-direction="newer"]', list);
+        if (newer && window.htmx) {
+            var url = newer.getAttribute("data-load-more").split("?")[0] + "?start=latest";
+            pendingJump = true;
+            htmx.ajax("GET", url, { target: "#conversation", swap: "innerHTML" });
+            return;
+        }
         var content = list && qs("[data-conversation-content]", list);
         if (!content || !qs("article.message .message-header", content)) {
             return;
@@ -179,6 +191,62 @@
         if (observer) { observer.observe(content); }
     }
 
+    var pendingJump = false;
+    var loadingMore = false;
+    // How close to the edge, in pixels, the next page starts loading.
+    var loadMargin = 1500;
+
+    function loadMore(list, marker) {
+        var older = marker.getAttribute("data-direction") === "older";
+        loadingMore = true;
+        fetch(marker.getAttribute("data-load-more"), { credentials: "same-origin" })
+            .then(function (res) {
+                if (!res.ok) { throw new Error(res.statusText); }
+                return res.text();
+            })
+            .then(function (html) {
+                var fromBottom = list.scrollHeight - list.scrollTop;
+                var frag = document.createRange().createContextualFragment(html);
+                var nodes = Array.prototype.slice.call(frag.children);
+                var next = marker.nextElementSibling;
+                marker.replaceWith(frag);
+                nodes.forEach(function (n) { if (window.htmx) { htmx.process(n); } });
+                if (older) {
+                    dropDuplicateDivider(nodes, next);
+                    list.scrollTop = list.scrollHeight - fromBottom;
+                }
+                loadingMore = false;
+                checkLoadMore();
+            })
+            .catch(function () {
+                marker.textContent = "Could not load messages. Scroll to retry.";
+                loadingMore = false;
+            });
+    }
+
+    // An older page ending on the same day as the page below it repeats the day divider.
+    function dropDuplicateDivider(nodes, next) {
+        var dividers = nodes.filter(function (n) { return n.classList.contains("day-divider"); });
+        var last = dividers[dividers.length - 1];
+        if (last && next && next.classList.contains("day-divider") && next.textContent === last.textContent) {
+            next.remove();
+        }
+    }
+
+    function checkLoadMore() {
+        var list = conversationList();
+        if (loadingMore || !list) { return; }
+        var older = qs('[data-direction="older"]', list);
+        if (older && list.scrollTop < loadMargin) {
+            loadMore(list, older);
+            return;
+        }
+        var newer = qs('[data-direction="newer"]', list);
+        if (newer && list.scrollHeight - list.clientHeight - list.scrollTop < loadMargin) {
+            loadMore(list, newer);
+        }
+    }
+
     function initConversation(applyPreference) {
         var list = conversationList();
         var button = qs("[data-jump-latest]");
@@ -186,9 +254,11 @@
             button.disabled = !list || !qs("article.message .message-header", list);
         }
         // Message anchors and thread deep links always win over the preference.
-        if (applyPreference && !window.location.hash && conversationStart === "latest") {
+        if (pendingJump || (applyPreference && !window.location.hash && conversationStart === "latest")) {
+            pendingJump = false;
             jumpToLatest();
         }
+        if (!window.location.hash) { checkLoadMore(); }
     }
 
     function initSettings() {
@@ -208,7 +278,8 @@
         dialog.addEventListener("close", function () { opener.focus(); });
         qs("#settings-form").addEventListener("submit", function (event) {
             event.preventDefault();
-            conversationStart = select.value === "latest" ? "latest" : "oldest";
+            conversationStart = select.value === "oldest" ? "oldest" : "latest";
+            saveStartCookie();
             try {
                 window.localStorage.setItem(settingsKey, JSON.stringify({
                     version: 1, conversationStart: conversationStart
@@ -226,7 +297,11 @@
         document.addEventListener("keydown", onTabKeydown);
         syncActiveChannel();
         conversationStart = readSettings();
+        saveStartCookie();
         initSettings();
+        document.addEventListener("scroll", function (event) {
+            if (event.target && event.target.id === "tab-panel-conversation") { checkLoadMore(); }
+        }, true);
         var navigation = window.performance && performance.getEntriesByType("navigation")[0];
         initConversation(/^\/archives\/[^/]+\/?$/.test(window.location.pathname) &&
             (!navigation || navigation.type !== "back_forward"));
