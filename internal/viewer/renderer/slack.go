@@ -84,6 +84,9 @@ func NewSlack(tmpl *template.Template, opts ...SlackOption) *Slack {
 		"fileurl": func(id, filename string) string {
 			return s.routes.File(id, filename)
 		},
+		"mrkdwn": func(text string) template.HTML {
+			return template.HTML(s.mrkdwn(text))
+		},
 		"rewriteurl": func(src string) string {
 			if s.routes == nil {
 				return src
@@ -97,15 +100,15 @@ func NewSlack(tmpl *template.Template, opts ...SlackOption) *Slack {
 	return s
 }
 
-func (*Slack) RenderText(ctx context.Context, s string) (v string) {
-	return parseSlackMd(s)
+func (s *Slack) RenderText(ctx context.Context, text string) (v string) {
+	return s.mrkdwn(text)
 }
 
 func (s *Slack) Render(ctx context.Context, m *slack.Message) (v template.HTML) {
 	var buf strings.Builder
 
 	if len(m.Blocks.BlockSet) == 0 {
-		fmt.Fprint(&buf, parseSlackMd(m.Text))
+		fmt.Fprint(&buf, s.mrkdwn(m.Text))
 	} else {
 		s.renderBlocks(ctx, &buf, m.Timestamp, m.Blocks.BlockSet)
 	}

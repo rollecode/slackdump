@@ -207,13 +207,13 @@ func (s *Slack) rtseUser(ie slack.RichTextSectionElement) (string, string, error
 	var name string
 
 	if u, ok := s.uu[e.UserID]; s.uu != nil && ok {
-		name = u.Name
+		name = userDisplayName(&u)
 	} else {
 		slog.Warn("user not found", "user_id", e.UserID)
 		name = e.UserID
 	}
 
-	text := applyStyle(fmt.Sprintf("&lt;@%s&gt;", escape(name)), e.Style)
+	text := applyStyle(fmt.Sprintf(`<span class="mention">@%s</span>`, escape(name)), e.Style)
 	if s.routes != nil {
 		text = fmt.Sprintf(`<a href="%s">%s</a>`, escape(s.routes.User(e.UserID)), text)
 	}
@@ -243,11 +243,11 @@ func (s *Slack) rtseChannel(ie slack.RichTextSectionElement) (string, string, er
 		name = e.ChannelID
 	}
 
-	text := applyStyle(fmt.Sprintf("&lt;#%s&gt;", escape(name)), e.Style)
+	text := applyStyle(fmt.Sprintf(`<span class="mention">#%s</span>`, escape(name)), e.Style)
 	if s.routes != nil {
 		text = fmt.Sprintf(`<a href="%s">%s</a>`, escape(s.routes.Channel(e.ChannelID)), text)
 	}
-	return elDiv(rtseTypeClass[slack.RTSEChannel], text), "", nil
+	return text, "", nil
 }
 
 func (s *Slack) rtseBroadcast(ie slack.RichTextSectionElement) (string, string, error) {
@@ -255,7 +255,7 @@ func (s *Slack) rtseBroadcast(ie slack.RichTextSectionElement) (string, string, 
 	if !ok {
 		return "", "", NewErrIncorrectType(&slack.RichTextSectionBroadcastElement{}, ie)
 	}
-	return elStrong(rtseTypeClass[slack.RTSEBroadcast], fmt.Sprintf("@%s ", escape(e.Range))), "", nil
+	return fmt.Sprintf(`<span class="mention broadcast">@%s</span> `, escape(e.Range)), "", nil
 }
 
 func (s *Slack) rtseUserGroup(ie slack.RichTextSectionElement) (string, string, error) {
@@ -271,7 +271,7 @@ func (s *Slack) rtseUserGroup(ie slack.RichTextSectionElement) (string, string, 
 		name = e.UsergroupID
 	}
 
-	return elDiv(rtseTypeClass[slack.RTSEUserGroup], fmt.Sprintf("&lt;@%s&gt;", escape(name))), "", nil
+	return fmt.Sprintf(`<span class="mention">@%s</span>`, escape(name)), "", nil
 }
 
 func (s *Slack) rtseColor(ie slack.RichTextSectionElement) (string, string, error) {

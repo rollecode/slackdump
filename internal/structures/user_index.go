@@ -54,7 +54,7 @@ func (idx UserIndex) DisplayName(id string) string {
 		return "Unknown User"
 	}
 	return idx.userattr(id, func(user *slack.User) string {
-		return NVL(user.Profile.DisplayName, user.RealName, user.Name)
+		return NVL(user.Profile.DisplayName, user.Profile.RealName, user.RealName, user.Name)
 	})
 }
 

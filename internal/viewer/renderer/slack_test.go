@@ -35,6 +35,7 @@ var tmpl = template.Must(template.New("blocks").Funcs(functions.FuncMap).Funcs(t
 		return NewRoutes(ModeLive).File(id, filename)
 	},
 	"rewriteurl": func(src string) string { return src },
+	"mrkdwn":     func(text string) template.HTML { return template.HTML(template.HTMLEscapeString(text)) },
 }).ParseFS(templates, "templates/*.html"))
 
 func TestSlack_Render(t *testing.T) {

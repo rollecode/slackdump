@@ -199,7 +199,7 @@ func TestSlack_rtseUserGroup(t *testing.T) {
 			args{
 				ie: slack.NewRichTextSectionUserGroupElement("W12345678"),
 			},
-			`<div class="slack-rich-text-section-user-group">&lt;@W12345678&gt;</div>`,
+			`<span class="mention">@W12345678</span>`,
 			``,
 			false,
 		},
@@ -286,19 +286,19 @@ func TestSlack_rtseChannel(t *testing.T) {
 			name: "no routes - plain div",
 			s:    &Slack{cc: cc},
 			ie:   slack.NewRichTextSectionChannelElement("C123", nil),
-			want: `<div class="slack-rich-text-section-channel">&lt;#general&gt;</div>`,
+			want: `<span class="mention">#general</span>`,
 		},
 		{
 			name: "live routes - linked",
 			s:    &Slack{cc: cc, routes: NewRoutes(ModeLive)},
 			ie:   slack.NewRichTextSectionChannelElement("C123", nil),
-			want: `<div class="slack-rich-text-section-channel"><a href="/archives/C123">&lt;#general&gt;</a></div>`,
+			want: `<a href="/archives/C123"><span class="mention">#general</span></a>`,
 		},
 		{
 			name: "static routes - linked to index.html",
 			s:    &Slack{cc: cc, routes: NewRoutes(ModeStatic)},
 			ie:   slack.NewRichTextSectionChannelElement("C123", nil),
-			want: `<div class="slack-rich-text-section-channel"><a href="/archives/C123/index.html">&lt;#general&gt;</a></div>`,
+			want: `<a href="/archives/C123/index.html"><span class="mention">#general</span></a>`,
 		},
 	}
 	for _, tt := range tests {
@@ -328,19 +328,19 @@ func TestSlack_rtseUser(t *testing.T) {
 			name: "no routes - plain mention",
 			s:    &Slack{uu: uu},
 			ie:   slack.NewRichTextSectionUserElement("U123", nil),
-			want: `&lt;@alice&gt;`,
+			want: `<span class="mention">@alice</span>`,
 		},
 		{
 			name: "live routes - linked",
 			s:    &Slack{uu: uu, routes: NewRoutes(ModeLive)},
 			ie:   slack.NewRichTextSectionUserElement("U123", nil),
-			want: `<a href="/team/U123">&lt;@alice&gt;</a>`,
+			want: `<a href="/team/U123"><span class="mention">@alice</span></a>`,
 		},
 		{
 			name: "static routes - linked to index.html",
 			s:    &Slack{uu: uu, routes: NewRoutes(ModeStatic)},
 			ie:   slack.NewRichTextSectionUserElement("U123", nil),
-			want: `<a href="/team/U123/index.html">&lt;@alice&gt;</a>`,
+			want: `<a href="/team/U123/index.html"><span class="mention">@alice</span></a>`,
 		},
 	}
 	for _, tt := range tests {
