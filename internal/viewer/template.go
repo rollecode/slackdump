@@ -62,9 +62,15 @@ func initTemplates(v *Viewer) {
 			"render":          func(m slack.Message) template.HTML { return v.r.Render(context.Background(), &m) }, // render message
 			"is_thread_start": func(m slack.Message) bool { return st.IsThreadStart(&m) },
 			"canvas_present":  func(ch slack.Channel) bool { return ch.Properties != nil && ch.Properties.Canvas.FileId != "" },
-			"msgview": func(channelID string, m slack.Message) messageView {
-				return messageView{Msg: m, ChannelID: channelID, Interactive: v.rts.Interactive()}
+			"msgview": func(channelID string, m slack.Message, continued ...bool) messageView {
+				return messageView{Msg: m, ChannelID: channelID, Interactive: v.rts.Interactive(), Continued: len(continued) > 0 && continued[0]}
 			},
+			"newday":        newDay,
+			"continued":     continuedMsg,
+			"daylabel":      dayLabel,
+			"hhmm":          clockTime,
+			"is_system_msg": isSystemMsg,
+			"sidebarlabel":  v.sidebarLabel,
 		},
 	).ParseFS(fsys, "templates/*.html"))
 	v.tmpl = tmpl
@@ -99,6 +105,85 @@ func (v *Viewer) channelDisplayName(ch slack.Channel) template.HTML {
 	buf.WriteString("</em>")
 	buf.WriteString(template.HTMLEscapeString(archived))
 	return template.HTML(buf.String())
+}
+
+// groupGap is how close in time two messages from one person must be for
+// Slack to show the second without its own avatar and name.
+const groupGap = 5 * time.Minute
+
+func msgTime(m any) (time.Time, bool) {
+	msg, ok := m.(slack.Message)
+	if !ok {
+		return time.Time{}, false
+	}
+	t, err := st.ParseSlackTS(msg.Timestamp)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return t.Local(), true
+}
+
+func newDay(prev any, cur slack.Message) bool {
+	pt, ok := msgTime(prev)
+	if !ok {
+		return true
+	}
+	ct, ok := msgTime(cur)
+	if !ok {
+		return false
+	}
+	return pt.YearDay() != ct.YearDay() || pt.Year() != ct.Year()
+}
+
+func continuedMsg(prev any, cur slack.Message) bool {
+	p, ok := prev.(slack.Message)
+	if !ok || newDay(prev, cur) {
+		return false
+	}
+	if p.User != cur.User || !isUserMsg(p) || !isUserMsg(cur) || isSystemMsg(p) || isSystemMsg(cur) {
+		return false
+	}
+	pt, _ := msgTime(p)
+	ct, _ := msgTime(cur)
+	return ct.Sub(pt) < groupGap
+}
+
+func dayLabel(ts string) string {
+	t, err := st.ParseSlackTS(ts)
+	if err != nil {
+		return ts
+	}
+	t = t.Local()
+	return t.Format("Monday") + " " + t.Format("2.1.2006")
+}
+
+func clockTime(ts string) string {
+	t, err := st.ParseSlackTS(ts)
+	if err != nil {
+		return ts
+	}
+	return t.Local().Format("15:04")
+}
+
+func isSystemMsg(m slack.Message) bool {
+	switch m.SubType {
+	case "channel_join", "channel_leave", "channel_topic", "channel_purpose", "channel_name",
+		"channel_archive", "channel_unarchive", "group_join", "group_leave", "group_topic",
+		"group_purpose", "group_name", "pinned_item", "bot_add", "bot_remove":
+		return true
+	}
+	return false
+}
+
+// sidebarLabel is the channel name without its prefix and archived marker,
+// which the sidebar shows on its own.
+func (v *Viewer) sidebarLabel(ch slack.Channel) template.HTML {
+	name := strings.TrimSuffix(string(v.channelDisplayName(ch)), " (archived)")
+	prefix := template.HTMLEscapeString(st.ChannelPrefix(ch))
+	if prefix == "" || !strings.HasPrefix(name, prefix) {
+		return template.HTML(name)
+	}
+	return template.HTML(`<span class="ch-prefix">` + strings.TrimSpace(prefix) + `</span><span class="ch-name">` + strings.TrimPrefix(name, prefix) + `</span>`)
 }
 
 func localtime(ts string) string {

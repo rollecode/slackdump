@@ -546,6 +546,7 @@ type messageView struct {
 	Msg         slack.Message
 	ChannelID   string
 	Interactive bool
+	Continued   bool // same sender as the message above, so header is hidden
 }
 
 type mainView struct {

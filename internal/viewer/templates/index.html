@@ -22,14 +22,14 @@
             <header>
                 <div class="sidebar-header-inner">
                     {{ if .Interactive }}<div class="sidebar-title">{{ end }}
-                    <h1>Slackdump</h1>
+                    <h1>{{ .Name }}</h1>
                     {{ if .Interactive }}<button type="button" id="open-settings" class="settings-button" aria-label="Viewer settings" aria-haspopup="dialog" aria-controls="viewer-settings" title="Viewer settings">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                             <path d="M8.94 4.61L10.26 2.15 13.74 2.15 15.06 4.61 17.74 3.81 20.19 6.26 19.39 8.94 21.85 10.26 21.85 13.74 19.39 15.06 20.19 17.74 17.74 20.19 15.06 19.39 13.74 21.85 10.26 21.85 8.94 19.39 6.26 20.19 3.81 17.74 4.61 15.06 2.15 13.74 2.15 10.26 4.61 8.94 3.81 6.26 6.26 3.81Z" />
                             <circle cx="12" cy="12" r="3" />
                         </svg>
                     </button></div>{{ end }}
-                    <small class="subtitle">{{.Type}}: {{.Name}}</small>
+                    <small class="subtitle">Slack archive</small>
                 </div>
             </header>
             <!-- Channel list goes here -->
@@ -44,8 +44,8 @@
             {{ else }}
             <header class="conversation-header">
                 <div class="conversation-inner">
-                    <h3>Slackdump Browser</h3>
-                    <p>Please select the conversation on the left to view messages.</p>
+                    <h3>Slack archive</h3>
+                    <p>Pick a channel on the left.</p>
                 </div>
             </header>
             {{ end }}
@@ -88,13 +88,22 @@
     <div class="channel-header">
         <p>Channels</p>
     </div>
-    {{ range $i, $el := .Public }}
+    {{ range $i, $el := .Public }}{{ if not $el.IsArchived }}
     {{ template "channel_link" (chlink $el $.Interactive) }}
-    {{ end }}
-    {{ range $i, $el := .Private }}
+    {{ end }}{{ end }}
+    {{ range $i, $el := .Private }}{{ if not $el.IsArchived }}
     {{ template "channel_link" (chlink $el $.Interactive) }}
-    {{ end }}
+    {{ end }}{{ end }}
 </div>
+<details class="channel-list archived-list">
+    <summary class="channel-header"><p>Archived channels</p></summary>
+    {{ range $i, $el := .Public }}{{ if $el.IsArchived }}
+    {{ template "channel_link" (chlink $el $.Interactive) }}
+    {{ end }}{{ end }}
+    {{ range $i, $el := .Private }}{{ if $el.IsArchived }}
+    {{ template "channel_link" (chlink $el $.Interactive) }}
+    {{ end }}{{ end }}
+</details>
 {{ end }}
 {{ if (or .MPIM .DM) }}
 <div class="channel-list">
@@ -112,7 +121,7 @@
 {{ end }}
 
 {{ define "channel_link" }}
-<a id="channel-link-{{.Channel.ID}}" href="{{ channelurl .Channel.ID }}"{{ if .Interactive }} hx-get="{{ channelurl .Channel.ID }}" hx-target="#conversation" hx-push-url="true"{{ end }}>{{ channelname .Channel }}</a>
+<a id="channel-link-{{.Channel.ID}}" href="{{ channelurl .Channel.ID }}"{{ if .Interactive }} hx-get="{{ channelurl .Channel.ID }}" hx-target="#conversation" hx-push-url="true"{{ end }}>{{ sidebarlabel .Channel }}</a>
 {{ end }}
 
 {{define "hx_chan_header"}}
@@ -207,31 +216,27 @@
 {{ $id := .Conversation.ID }}
 <div class="message-list" id="tab-panel-conversation" role="tabpanel" aria-labelledby="tab-btn-conversation" tabindex="0">
 {{ if .Interactive }}<div data-conversation-content>{{ end }}
+{{ $prev := "" }}
 {{ range $el, $err := .Messages }}
-    <article class="message">
-        {{ if $err }} <p>Error: {{ $err }}</p> {{ else }}
-            {{ if is_user_msg $el }}
-	        <a class="avatar" href="{{ profileurl $el }}"{{ if $.Interactive }} hx-get="{{ userurl $el.User }}" hx-target="#thread"{{ end }}>
-		    <img class="avatar" src="{{ userpic $el.User }}" />
-            </a>
-            {{ else }}
-            <span class="avatar"><img class="avatar" src="{{ userpic $el.User }}" /></span>
+    {{ if $err }}<article class="message"><p>Error: {{ $err }}</p></article>{{ else }}
+    {{ if newday $prev $el }}<div class="day-divider" role="separator"><span>{{ daylabel $el.Timestamp }}</span></div>{{ end }}
+    {{ $cont := continued $prev $el }}
+    <article class="message{{ if $cont }} continued{{ end }}{{ if is_system_msg $el }} system{{ end }}">
+        {{ template "message_gutter" (msgview "" $el $cont) }}
+        <div class="message-inner">
+            {{ template "render_message" (msgview $id $el $cont) }}
+            {{ if is_thread_start $el }}
+            <footer class="thread-info">
+            <a class="reply-count" href="{{ threadurl $id $el.ThreadTimestamp }}"{{ if $.Interactive }} hx-get="{{ threadurl $id $el.ThreadTimestamp }}" hx-target="#thread"{{ end }}>{{ if eq $el.ReplyCount 1 }}1 reply{{ else }}{{ $el.ReplyCount }} replies{{ end }}</a>
+            <span class="last-reply">Last reply {{ daylabel $el.LatestReply }} {{ hhmm $el.LatestReply }}</span>
+            </footer>
             {{ end }}
-            <div class="message-inner">
-                {{ template "render_message" (msgview $id $el) }}
-                {{ if is_thread_start $el }}
-                <footer class="thread-info">
-                <a href="{{ threadurl $id $el.ThreadTimestamp }}"{{ if $.Interactive }} hx-get="{{ threadurl $id $el.ThreadTimestamp }}" hx-target="#thread"{{ end }}>
-                    {{ $el.ReplyCount }} replies
-                </a>
-                <span class="last-reply grey">Latest reply: {{ time $el.LatestReply }}</span>
-                </footer>
-            {{ end }}
-            </div>
-        {{ end }}
+        </div>
     </article>
     {{ if and (not $.Interactive) (is_user_msg $el) }}
     {{ template "static_user_profile" (staticuserview $el) }}
+    {{ end }}
+    {{ $prev = $el }}
     {{ end }}
 {{end}}
 {{ if .Interactive }}</div>{{ end }}
@@ -241,34 +246,44 @@
 
 {{define "hx_thread"}}
 <header class="thread-header">
-    <h2>Thread: {{ .ThreadID }}</h2>
+    <div class="thread-title"><h2>Thread</h2><span class="thread-channel">{{ channelname .Conversation }}</span></div>
     {{ if .Interactive }}<button type="button" id="close-thread" class="close-button" data-close-panel aria-label="Close thread panel">&times;</button>{{ else }}<a id="close-thread" class="close-button" href="{{ channelurl .Conversation.ID }}" aria-label="Close thread panel">&times;</a>{{ end }}
 </header>
 <p class="thread-link-row"><a id="thread-link" href="{{ threadmsgurl .Conversation.ID .ThreadID .ThreadID }}">Link to this thread</a></p>
 <div class="message-list">
+    {{ $prev := "" }}
     {{ range $el, $err := .ThreadMessages }}
-    <article class="message">
-        {{ if $err }} <p>Error: {{ $err }}</p> {{ else }}
-        {{ if is_user_msg $el }}
-	    <a class="avatar" href="{{ profileurl $el }}"{{ if $.Interactive }} hx-get="{{ userurl $el.User }}" hx-target="#thread"{{ end }}>
-		<img class="avatar" src="{{ userpic $el.User }}" />
-        </a>
-        {{ else }}
-        <span class="avatar"><img class="avatar" src="{{ userpic $el.User }}" /></span>
-        {{ end }}
+    {{ if $err }}<article class="message"><p>Error: {{ $err }}</p></article>{{ else }}
+    {{ $cont := continued $prev $el }}
+    <article class="message{{ if $cont }} continued{{ end }}{{ if is_system_msg $el }} system{{ end }}">
+        {{ template "message_gutter" (msgview "" $el $cont) }}
         <div class="message-inner">
-            {{ template "render_message" (msgview "" $el) }}
+            {{ template "render_message" (msgview "" $el $cont) }}
         </div>
-        {{ end }}
     </article>
     {{ if and (not $.Interactive) (is_user_msg $el) }}
     {{ template "static_user_profile" (staticuserview $el) }}
+    {{ end }}
+    {{ $prev = $el }}
     {{ end }}
     {{end}}
 </div>
 {{end}}
 
+{{ define "message_gutter" }}
+<div class="gutter">
+{{ if .Continued }}
+    <a class="hover-time" href="#{{ .Msg.Timestamp }}" title="{{ time .Msg.Timestamp }}">{{ hhmm .Msg.Timestamp }}</a>
+{{ else if is_user_msg .Msg }}
+    <a class="avatar" href="{{ profileurl .Msg }}"{{ if .Interactive }} hx-get="{{ userurl .Msg.User }}" hx-target="#thread"{{ end }}><img class="avatar" src="{{ userpic .Msg.User }}" alt="" data-name="{{ username .Msg }}" loading="lazy" /></a>
+{{ else }}
+    <span class="avatar"><img class="avatar" src="{{ userpic .Msg.User }}" alt="" data-name="{{ username .Msg }}" loading="lazy" /></span>
+{{ end }}
+</div>
+{{ end }}
+
 {{ define "render_message" }}
+{{ if .Continued }}<span id="{{.Msg.Timestamp}}"></span>{{ else }}
 <header class="message-header" id="{{.Msg.Timestamp}}">
     <span class="message-sender">
         {{ if ( or ( is_app_msg .Msg ) ( not .Msg.User ) ) -}}
@@ -277,23 +292,23 @@
 		<a href="{{ profileurl .Msg }}"{{ if $.Interactive }} hx-get="{{ userurl .Msg.User }}" hx-target="#thread"{{ end }}>{{ username .Msg }}</a>
         {{- end }}
     </span>
-    <span class="message-timestamp grey">{{ time .Msg.Timestamp }}</span>
-    <span class="message-link"><a href="#{{.Msg.Timestamp}}">#</a></span>
+    <a class="message-timestamp" href="#{{.Msg.Timestamp}}" title="{{ daylabel .Msg.Timestamp }} {{ time .Msg.Timestamp }}">{{ hhmm .Msg.Timestamp }}</a>
 </header>
+{{ end }}
 {{- if and .ChannelID .Msg.ThreadTimestamp (ne .Msg.ThreadTimestamp .Msg.Timestamp) }}
 <div class="reply-context">
     ↩ <a href="{{ channelmsgurl .ChannelID .Msg.ThreadTimestamp }}">replying to {{ time .Msg.ThreadTimestamp }}</a>
 </div>
 {{- end }}
 <div class="message-content">
-    <p>{{ render .Msg }}</p>
+    <div class="message-text">{{ render .Msg }}</div>
 </div>
 {{ end }}
 
 
 
 {{ define "channel_link_oob" }}
-<a id="channel-link-{{.Conversation.ID}}" href="{{ channelurl .Conversation.ID }}"{{ if .Interactive }} hx-get="{{ channelurl .Conversation.ID }}" hx-target="#conversation" hx-push-url="true" hx-swap-oob="outerHTML"{{ end }}>{{ channelname .Conversation }}</a>
+<a id="channel-link-{{.Conversation.ID}}" href="{{ channelurl .Conversation.ID }}"{{ if .Interactive }} hx-get="{{ channelurl .Conversation.ID }}" hx-target="#conversation" hx-push-url="true" hx-swap-oob="outerHTML"{{ end }}>{{ sidebarlabel .Conversation }}</a>
 {{ end }}
 
 {{ define "hx_user" }}
@@ -309,7 +324,7 @@
             {{ $pic := userpic .User.ID }}
             <div class="profile-image-container">
                 <a href="{{ $pic }}" target="_blank">
-                    <img src="{{ $pic }}" alt="{{ displayname .User.ID }}" class="profile-image">
+                    <img src="{{ $pic }}" alt="{{ displayname .User.ID }}" data-name="{{ displayname .User.ID }}" class="profile-image">
                 </a>
             </div>
 

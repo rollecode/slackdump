@@ -270,7 +270,7 @@ func TestThreadHandler_RendersHTMXPartial(t *testing.T) {
 	}
 	header := strings.Index(body, `<header class="thread-header">`)
 	closeButton := strings.Index(body, `<button type="button" id="close-thread"`)
-	title := strings.Index(body, `<h2>Thread: 1710000000.000001</h2>`)
+	title := strings.Index(body, `<h2>Thread</h2>`)
 	if header < 0 || title < header || closeButton < title {
 		t.Fatalf("threadHandler() HTMX response should render close button after thread title: %q", body)
 	}

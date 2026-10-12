@@ -295,4 +295,31 @@
     } else {
         init();
     }
+    // Slack deletes old avatar images; show the sender's initial instead of a broken image.
+    function initialAvatar(name) {
+        var letter = (name || "?").trim().charAt(0).toUpperCase() || "?";
+        var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72"><rect width="72" height="72" fill="#4A154B"/>' +
+            '<text x="36" y="48" font-family="Lato,Arial,sans-serif" font-size="36" font-weight="700" fill="#fff" text-anchor="middle">' +
+            letter.replace(/[<>&"']/g, "") + '</text></svg>';
+        return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+    }
+
+    function fallbackAvatar(img) {
+        if (!img || img.tagName !== "IMG" || !img.dataset || img.dataset.fallback || !("name" in img.dataset)) {
+            return;
+        }
+        img.dataset.fallback = "1";
+        img.src = initialAvatar(img.dataset.name);
+    }
+
+    document.addEventListener("error", function (e) {
+        fallbackAvatar(e.target);
+    }, true);
+
+    // Images that failed before this deferred script ran.
+    qsa("img[data-name]").forEach(function (img) {
+        if (img.complete && img.naturalWidth === 0) {
+            fallbackAvatar(img);
+        }
+    });
 }());
