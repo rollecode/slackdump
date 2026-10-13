@@ -69,6 +69,18 @@
 
     function onDocumentClick(event) {
         if (event.target.closest('a, [role="tab"], [data-close-panel]')) { stopFollowing(); }
+        if (event.target.closest("[data-jump-oldest]")) {
+            var rail = event.target.closest(".time-rail");
+            jumpTo(rail.getAttribute("data-url") + "?start=oldest");
+            return;
+        }
+        var month = event.target.closest(".rail-month");
+        if (month) {
+            // Pointer clicks jump on release; this is the keyboard path.
+            event.preventDefault();
+            if (event.detail === 0) { jumpTo(month.getAttribute("href")); }
+            return;
+        }
         if (event.target.closest("[data-jump-latest]")) {
             jumpToLatest();
             return;
@@ -247,17 +259,107 @@
         }
     }
 
+    // Set while a page opened at a chosen position loads, so the start preference leaves it there.
+    var positioned = false;
+
+    function jumpTo(url) {
+        if (!window.htmx) {
+            window.location.href = url;
+            return;
+        }
+        stopFollowing();
+        positioned = true;
+        htmx.ajax("GET", url, { target: "#conversation", swap: "innerHTML" });
+    }
+
+    // The time rail: press or drag over it to pick a month, release to jump there.
+    function initRail() {
+        var track = qs("#conversation .rail-track");
+        if (!track || track.hasAttribute("data-ready")) { return; }
+        track.setAttribute("data-ready", "");
+        var bubble = qs(".rail-bubble", track);
+        var months = qsa(".rail-month", track);
+        var picked = null;
+        var dragging = false;
+
+        function pick(event) {
+            var y = event.clientY;
+            picked = months[months.length - 1];
+            for (var i = 0; i < months.length; i++) {
+                if (months[i].getBoundingClientRect().bottom >= y) {
+                    picked = months[i];
+                    break;
+                }
+            }
+            var top = Math.min(Math.max(y - track.getBoundingClientRect().top, 0), track.clientHeight);
+            bubble.textContent = picked.getAttribute("aria-label");
+            bubble.style.top = top + "px";
+            bubble.hidden = false;
+        }
+        function hide() {
+            bubble.hidden = true;
+        }
+        track.addEventListener("pointerdown", function (event) {
+            if (event.button !== 0) { return; }
+            event.preventDefault();
+            dragging = true;
+            track.setPointerCapture(event.pointerId);
+            pick(event);
+        });
+        track.addEventListener("pointermove", function (event) {
+            if (dragging || event.pointerType === "mouse") { pick(event); }
+        });
+        track.addEventListener("pointerup", function (event) {
+            if (!dragging) { return; }
+            dragging = false;
+            pick(event);
+            hide();
+            jumpTo(picked.getAttribute("href"));
+        });
+        track.addEventListener("pointercancel", function () {
+            dragging = false;
+            hide();
+        });
+        track.addEventListener("pointerleave", function () {
+            if (!dragging) { hide(); }
+        });
+    }
+
+    var railFrame = 0;
+
+    // Highlights the month at the top of the message list.
+    function markRail() {
+        railFrame = 0;
+        var list = conversationList();
+        var rail = qs("#conversation .rail-track");
+        if (!list || !rail) { return; }
+        var top = list.getBoundingClientRect().top + list.clientHeight / 3;
+        var key = "";
+        var dividers = qsa(".day-divider[data-month]", list);
+        for (var i = 0; i < dividers.length; i++) {
+            var next = dividers[i].nextElementSibling;
+            if (next && next.getBoundingClientRect().top > top) { break; }
+            key = dividers[i].getAttribute("data-month");
+        }
+        if (!key && dividers.length) { key = dividers[0].getAttribute("data-month"); }
+        qsa(".rail-month.current", rail).forEach(function (el) { el.classList.remove("current"); });
+        var current = key && qs('.rail-month[data-month="' + key + '"]', rail);
+        if (current) { current.classList.add("current"); }
+    }
+
     function initConversation(applyPreference) {
         var list = conversationList();
-        var button = qs("[data-jump-latest]");
-        if (button) {
+        qsa("[data-jump-latest]").forEach(function (button) {
             button.disabled = !list || !qs("article.message .message-header", list);
-        }
-        // Message anchors and thread deep links always win over the preference.
-        if (pendingJump || (applyPreference && !window.location.hash && conversationStart === "latest")) {
+        });
+        // Message anchors, thread deep links and rail jumps always win over the preference.
+        if (pendingJump || (applyPreference && !positioned && !window.location.hash && conversationStart === "latest")) {
             pendingJump = false;
             jumpToLatest();
         }
+        positioned = false;
+        initRail();
+        markRail();
         if (!window.location.hash) { checkLoadMore(); }
     }
 
@@ -300,9 +402,13 @@
         saveStartCookie();
         initSettings();
         document.addEventListener("scroll", function (event) {
-            if (event.target && event.target.id === "tab-panel-conversation") { checkLoadMore(); }
+            if (event.target && event.target.id === "tab-panel-conversation") {
+                checkLoadMore();
+                if (!railFrame) { railFrame = requestAnimationFrame(markRail); }
+            }
         }, true);
         var navigation = window.performance && performance.getEntriesByType("navigation")[0];
+        positioned = /[?&](from|at)=/.test(window.location.search);
         initConversation(/^\/archives\/[^/]+\/?$/.test(window.location.pathname) &&
             (!navigation || navigation.type !== "back_forward"));
     }

@@ -4,6 +4,7 @@ import (
 	"iter"
 	"net/http"
 	"slices"
+	"time"
 
 	"github.com/rusq/slack"
 
@@ -21,6 +22,7 @@ const (
 	startBefore // messages older than ts
 	startAfter  // messages newer than ts
 	startAt     // messages around ts
+	startFrom   // messages from ts on, a full page
 )
 
 // startCookie holds the "open channels at" preference so the server can
@@ -39,7 +41,7 @@ func pageFromRequest(r *http.Request) pageQuery {
 	for _, p := range []struct {
 		key   string
 		start pageStart
-	}{{"before", startBefore}, {"after", startAfter}, {"at", startAt}} {
+	}{{"before", startBefore}, {"after", startAfter}, {"at", startAt}, {"from", startFrom}} {
 		if ts := q.Get(p.key); ts != "" {
 			return pageQuery{start: p.start, ts: ts}
 		}
@@ -66,6 +68,36 @@ type messagePage struct {
 	prev  any    // message right before msgs, for day dividers and grouping
 	older string // ts to load older messages from, empty if none
 	newer string // ts to load newer messages from, empty if none
+	years []yearMark
+}
+
+// yearMark lists the months of a year that have messages, for the time rail.
+type yearMark struct {
+	Year   int
+	Months []monthMark
+}
+
+type monthMark struct {
+	Name string // "Jun"
+	Key  string // "2015-06"
+	TS   string // first message of the month
+}
+
+// addMonth records the month of ts if it starts a new one.
+func addMonth(years []yearMark, us int64, ts string) []yearMark {
+	t := time.UnixMicro(us).Local()
+	key := t.Format("2006-01")
+	if n := len(years); n > 0 {
+		last := years[n-1]
+		if last.Months[len(last.Months)-1].Key == key {
+			return years
+		}
+		if last.Year == t.Year() {
+			years[n-1].Months = append(last.Months, monthMark{t.Format("Jan"), key, ts})
+			return years
+		}
+	}
+	return append(years, yearMark{t.Year(), []monthMark{{t.Format("Jan"), key, ts}}})
 }
 
 // paginate picks the window q asks for from it, which runs oldest first.
@@ -78,7 +110,7 @@ func paginate(it iter.Seq2[slack.Message, error], q pageQuery) (messagePage, err
 	}
 	beforeCap, afterCap := pageSize, 0
 	switch q.start {
-	case startOldest, startAfter:
+	case startOldest, startAfter, startFrom:
 		beforeCap, afterCap = 0, pageSize
 	case startAt:
 		beforeCap, afterCap = pageSize/2, pageSize/2
@@ -106,6 +138,7 @@ func paginate(it iter.Seq2[slack.Message, error], q pageQuery) (messagePage, err
 			return messagePage{}, err
 		}
 		ts, _ := parseTS(m.Timestamp) // a bad timestamp sorts first instead of failing the page
+		pg.years = addMonth(pg.years, ts, m.Timestamp)
 		if isBefore(ts) {
 			head = append(head, m)
 			if len(head) > beforeCap {
@@ -114,8 +147,8 @@ func paginate(it iter.Seq2[slack.Message, error], q pageQuery) (messagePage, err
 			continue
 		}
 		if len(tail) == afterCap {
-			moreAfter = true
-			break
+			moreAfter = true // keep scanning for the time rail
+			continue
 		}
 		tail = append(tail, m)
 	}

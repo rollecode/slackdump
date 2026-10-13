@@ -71,7 +71,7 @@ func (v *Viewer) renderChannel(ctx context.Context, channelID string, q pageQuer
 		if err != nil {
 			return err
 		}
-		page.Messages, page.Prev, page.Older, page.Newer = seqOf(pg.msgs), pg.prev, pg.older, pg.newer
+		page.Messages, page.Prev, page.Older, page.Newer, page.Years = seqOf(pg.msgs), pg.prev, pg.older, pg.newer, pg.years
 	}
 	return v.tmpl.ExecuteTemplate(w, tmpl, page)
 }
@@ -543,9 +543,10 @@ type mainView struct {
 	Type            string
 	Interactive     bool
 	Messages        iter.Seq2[slack.Message, error]
-	Prev            any    // message before Messages, for day dividers and grouping
-	Older           string // ts to load older messages from, live mode only
-	Newer           string // ts to load newer messages from, live mode only
+	Prev            any        // message before Messages, for day dividers and grouping
+	Older           string     // ts to load older messages from, live mode only
+	Newer           string     // ts to load newer messages from, live mode only
+	Years           []yearMark // months with messages, for the time rail
 	ThreadMessages  iter.Seq2[slack.Message, error]
 	ThreadID        string
 	Conversation    slack.Channel

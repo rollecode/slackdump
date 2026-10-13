@@ -214,12 +214,35 @@
 
 {{ define "message_list" }}
 {{ $id := .Conversation.ID }}
+{{ if .Years }}<div class="message-area">{{ end }}
 <div class="message-list" id="tab-panel-conversation" role="tabpanel" aria-labelledby="tab-btn-conversation" tabindex="0">
 {{ if .Interactive }}<div data-conversation-content>{{ end }}
 {{ template "message_chunk" . }}
 {{ if .Interactive }}</div>{{ end }}
 </div>
+{{ if .Years }}{{ template "time_rail" . }}</div>{{ end }}
 {{end}}
+
+{{ define "time_rail" }}
+{{ $id := .Conversation.ID }}
+<nav class="time-rail" aria-label="Jump to date" data-url="{{ channelurl $id }}">
+    <button type="button" class="rail-end" data-jump-oldest aria-label="Jump to oldest message" title="Oldest">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h14M12 21V7m-5 5 5-5 5 5" /></svg>
+    </button>
+    <div class="rail-track">
+        {{ range $y := .Years }}
+        <div class="rail-year" style="flex-grow: {{ len $y.Months }}">
+            <span class="rail-year-label" aria-hidden="true">{{ $y.Year }}</span>
+            {{ range $y.Months }}<a class="rail-month" href="{{ channelurl $id }}?from={{ .TS }}" data-month="{{ .Key }}" aria-label="{{ .Name }} {{ $y.Year }}"></a>{{ end }}
+        </div>
+        {{ end }}
+        <output class="rail-bubble" hidden></output>
+    </div>
+    <button type="button" class="rail-end" data-jump-latest aria-label="Jump to latest message" title="Newest">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v14m-5-5 5 5 5-5M5 21h14" /></svg>
+    </button>
+</nav>
+{{ end }}
 
 {{ define "message_chunk" }}
 {{ $id := .Conversation.ID }}
@@ -227,7 +250,7 @@
 {{ $prev := .Prev }}
 {{ range $el, $err := .Messages }}
     {{ if $err }}<article class="message"><p>Error: {{ $err }}</p></article>{{ else }}
-    {{ if newday $prev $el }}<div class="day-divider" role="separator"><span>{{ daylabel $el.Timestamp }}</span></div>{{ end }}
+    {{ if newday $prev $el }}<div class="day-divider" role="separator" data-month="{{ monthkey $el.Timestamp }}"><span>{{ daylabel $el.Timestamp }}</span></div>{{ end }}
     {{ $cont := continued $prev $el }}
     <article class="message{{ if $cont }} continued{{ end }}{{ if is_system_msg $el }} system{{ end }}">
         {{ template "message_gutter" (msgview "" $el $cont) }}

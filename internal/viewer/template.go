@@ -68,6 +68,7 @@ func initTemplates(v *Viewer) {
 			"newday":        newDay,
 			"continued":     continuedMsg,
 			"daylabel":      dayLabel,
+			"monthkey":      monthKey,
 			"hhmm":          clockTime,
 			"is_system_msg": isSystemMsg,
 			"sidebarlabel":  v.sidebarLabel,
@@ -155,6 +156,15 @@ func dayLabel(ts string) string {
 	}
 	t = t.Local()
 	return t.Format("Monday") + " " + t.Format("2.1.2006")
+}
+
+// monthKey matches monthMark.Key, so the time rail can find the month in view.
+func monthKey(ts string) string {
+	t, err := st.ParseSlackTS(ts)
+	if err != nil {
+		return ""
+	}
+	return t.Local().Format("2006-01")
 }
 
 func clockTime(ts string) string {

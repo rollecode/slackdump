@@ -2,8 +2,10 @@ package viewer
 
 import (
 	"fmt"
+	"reflect"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/rusq/slack"
 )
@@ -33,6 +35,7 @@ func TestPaginate(t *testing.T) {
 		{"before start", pageQuery{startBefore, tsOf(10)}, 0, 9, "", "", -1},
 		{"after", pageQuery{startAfter, tsOf(500)}, 501, 500 + pageSize, "", tsOf(500 + pageSize), 500},
 		{"after end", pageQuery{startAfter, tsOf(990)}, 991, 999, "", "", 990},
+		{"from", pageQuery{startFrom, tsOf(500)}, 500, 500 + pageSize - 1, tsOf(500), tsOf(500 + pageSize - 1), 499},
 		{"at", pageQuery{startAt, tsOf(500)}, 500 - pageSize/2, 500 + pageSize/2 - 1, tsOf(500 - pageSize/2), tsOf(500 + pageSize/2 - 1), 500 - pageSize/2 - 1},
 	}
 	for _, tt := range tests {
@@ -58,5 +61,27 @@ func TestPaginate(t *testing.T) {
 				t.Errorf("prev = %v, want %s", pg.prev, tsOf(tt.prev))
 			}
 		})
+	}
+}
+
+func TestPaginateYears(t *testing.T) {
+	ts := func(y int, m time.Month) string {
+		return strconv.FormatInt(time.Date(y, m, 15, 12, 0, 0, 0, time.Local).Unix(), 10) + ".000100"
+	}
+	mm := []slack.Message{{}, {}, {}, {}}
+	mm[0].Timestamp = ts(2015, time.June)
+	mm[1].Timestamp = ts(2015, time.June)
+	mm[2].Timestamp = ts(2015, time.August)
+	mm[3].Timestamp = ts(2017, time.January)
+	pg, err := paginate(seqOf(mm), pageQuery{start: startOldest})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []yearMark{
+		{2015, []monthMark{{"Jun", "2015-06", ts(2015, time.June)}, {"Aug", "2015-08", ts(2015, time.August)}}},
+		{2017, []monthMark{{"Jan", "2017-01", ts(2017, time.January)}}},
+	}
+	if !reflect.DeepEqual(pg.years, want) {
+		t.Errorf("years = %v, want %v", pg.years, want)
 	}
 }
